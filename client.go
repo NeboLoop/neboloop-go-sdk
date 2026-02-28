@@ -50,7 +50,6 @@ type Handler func(Message)
 type ChannelInfo struct {
 	ChannelID   string `json:"channel_id"`
 	ChannelName string `json:"channel_name"`
-	DisplayName string `json:"display_name"`
 	LoopID      string `json:"loop_id"`
 	LoopName    string `json:"loop_name"`
 }
