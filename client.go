@@ -156,8 +156,10 @@ func (c *Client) connect(ctx context.Context) error {
 }
 
 // Conn returns the underlying network connection.
-// This allows callers to configure TCP-level options such as keepalive.
 func (c *Client) Conn() net.Conn { return c.conn }
+
+// Done returns a channel that closes when the client shuts down.
+func (c *Client) Done() <-chan struct{} { return c.done }
 
 // Close disconnects from the gateway.
 func (c *Client) Close() error {
