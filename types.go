@@ -191,31 +191,31 @@ type RedeemSkillCodeRequest struct {
 
 // Loop describes a loop the bot belongs to.
 type Loop struct {
-	ID          string `json:"loop_id"`
-	Name        string `json:"loop_name"`
+	ID          string `json:"loopId"`
+	Name        string `json:"loopName"`
 	Description string `json:"description,omitempty"`
-	MemberCount int    `json:"member_count,omitempty"`
+	MemberCount int    `json:"memberCount,omitempty"`
 }
 
 // LoopMembership describes a loop membership with role and join metadata.
 // Returned by endpoints that include the bot's relationship to the loop.
 type LoopMembership struct {
-	LoopID   string `json:"loop_id"`
-	LoopName string `json:"loop_name"`
-	LoopType string `json:"loop_type,omitempty"`
+	LoopID   string `json:"loopId"`
+	LoopName string `json:"loopName"`
+	LoopType string `json:"loopType,omitempty"`
 	Role     string `json:"role,omitempty"`
-	JoinedAt string `json:"joined_at,omitempty"`
+	JoinedAt string `json:"joinedAt,omitempty"`
 }
 
 // LoopDetail describes detailed info about a loop.
 type LoopDetail struct {
-	LoopID      string `json:"loop_id"`
+	LoopID      string `json:"loopId"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	IsPublic    bool   `json:"is_public,omitempty"`
-	MemberCount int    `json:"member_count,omitempty"`
-	MyRole      string `json:"my_role,omitempty"`
-	JoinedAt    string `json:"joined_at,omitempty"`
+	IsPublic    bool   `json:"isPublic,omitempty"`
+	MemberCount int    `json:"memberCount,omitempty"`
+	MyRole      string `json:"myRole,omitempty"`
+	JoinedAt    string `json:"joinedAt,omitempty"`
 }
 
 // LoopsResponse is returned by GET /api/v1/bots/{id}/loops.
@@ -225,14 +225,14 @@ type LoopsResponse struct {
 
 // LoopMember describes a member in a loop with online presence.
 type LoopMember struct {
-	BotID      string `json:"bot_id"`
-	BotName    string `json:"bot_name,omitempty"`
-	BotSlug    string `json:"bot_slug,omitempty"`
+	BotID      string `json:"botId"`
+	BotName    string `json:"botName,omitempty"`
+	BotSlug    string `json:"botSlug,omitempty"`
 	Purpose    string `json:"purpose,omitempty"`
 	Reputation int    `json:"reputation,omitempty"`
 	Role       string `json:"role,omitempty"`
-	JoinedAt   string `json:"joined_at,omitempty"`
-	IsOnline   bool   `json:"is_online"`
+	JoinedAt   string `json:"joinedAt,omitempty"`
+	IsOnline   bool   `json:"isOnline"`
 }
 
 // LoopMembersResponse is returned by GET /api/v1/bots/{id}/loops/{loopID}/members.
@@ -243,7 +243,7 @@ type LoopMembersResponse struct {
 // JoinLoopRequest is sent to POST /api/v1/loops/join.
 type JoinLoopRequest struct {
 	Code  string `json:"code"`
-	BotID string `json:"bot_id"`
+	BotID string `json:"botId"`
 }
 
 // JoinLoopResponse is returned by POST /api/v1/loops/join.
@@ -258,11 +258,11 @@ type JoinLoopResponse struct {
 
 // LoopChannel describes a channel the bot belongs to within a Loop.
 type LoopChannel struct {
-	ChannelID      string `json:"channel_id"`
-	ChannelName    string `json:"channel_name"`
-	LoopID         string `json:"loop_id"`
-	LoopName       string `json:"loop_name"`
-	ConversationID string `json:"conversation_id"`
+	ChannelID      string `json:"channelId"`
+	ChannelName    string `json:"channelName"`
+	LoopID         string `json:"loopId"`
+	LoopName       string `json:"loopName"`
+	ConversationID string `json:"conversationId"`
 }
 
 // LoopChannelsResponse is the wrapper returned by GET /api/v1/bots/{id}/channels.
@@ -272,11 +272,11 @@ type LoopChannelsResponse struct {
 
 // ChannelMember describes a member in a channel with online presence.
 type ChannelMember struct {
-	BotID    string `json:"bot_id"`
-	BotName  string `json:"bot_name,omitempty"`
-	BotSlug  string `json:"bot_slug,omitempty"`
+	BotID    string `json:"botId"`
+	BotName  string `json:"botName,omitempty"`
+	BotSlug  string `json:"botSlug,omitempty"`
 	Role     string `json:"role,omitempty"`
-	IsOnline bool   `json:"is_online"`
+	IsOnline bool   `json:"isOnline"`
 }
 
 // ChannelMembersResponse is returned by GET /api/v1/bots/{id}/channels/{channelID}/members.
@@ -288,11 +288,11 @@ type ChannelMembersResponse struct {
 // Used by the WebSocket Client's channel message methods.
 type MessageEntry struct {
 	Seq       uint64 `json:"seq"`
-	MsgID     string `json:"msg_id"`
-	SenderID  string `json:"sender_id"`
+	MsgID     string `json:"msgId"`
+	SenderID  string `json:"senderId"`
 	Stream    string `json:"stream"`
 	Payload   string `json:"payload"`
-	CreatedAt string `json:"created_at"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ChannelMessageItem is a normalized message from channel history.
@@ -300,7 +300,7 @@ type ChannelMessageItem struct {
 	ID        string `json:"id"`
 	From      string `json:"from"`
 	Content   string `json:"content"`
-	CreatedAt string `json:"created_at"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ChannelMessagesResponse is returned by GET /api/v1/bots/{id}/channels/{channelID}/messages.
@@ -329,17 +329,17 @@ func (r *ChannelMessagesResponse) Normalize() []ChannelMessageItem {
 
 // channelMessageRaw is the raw wire format from the NeboLoop channel messages API.
 type channelMessageRaw struct {
-	MsgID     string `json:"msg_id"`
-	SenderID  string `json:"sender_id"`
-	Payload   string `json:"payload"` // JSON string containing sender_id, stream, content.text
-	CreatedAt string `json:"created_at"`
+	MsgID     string `json:"msgId"`
+	SenderID  string `json:"senderId"`
+	Payload   string `json:"payload"` // JSON string containing senderId, stream, content.text
+	CreatedAt string `json:"createdAt"`
 	Seq       int    `json:"seq"`
 	Stream    string `json:"stream"`
 }
 
 // channelPayload is the nested JSON inside channelMessageRaw.Payload.
 type channelPayload struct {
-	SenderID string `json:"sender_id"`
+	SenderID string `json:"senderId"`
 	Content  struct {
 		Text string `json:"text"`
 	} `json:"content"`
