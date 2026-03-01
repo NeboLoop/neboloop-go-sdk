@@ -4,17 +4,12 @@
 package neboloop
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
-	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -63,9 +58,6 @@ type Client struct {
 	done       chan struct{}
 	sendCh     chan []byte
 	handler    Handler
-	httpClient *http.Client
-	apiBase    string // resolved REST API base URL (e.g. "http://localhost:8888/api/v1")
-
 	// conversation mappings from join responses
 	convMu       sync.RWMutex
 	convByKey    map[string]string // "botId:stream" → conversationId
@@ -88,8 +80,6 @@ func Connect(ctx context.Context, cfg Config, handler Handler) (*Client, error) 
 		channelConvs:  make(map[string]string),
 		channelByConv: make(map[string]string),
 		channelMeta:   make(map[string]ChannelInfo),
-		httpClient:    &http.Client{Timeout: 30 * time.Second},
-		apiBase:       resolveAPIBase(cfg),
 	}
 
 	if err := c.connect(ctx); err != nil {
@@ -312,8 +302,8 @@ const (
 type ChatMessage struct {
 	Type    string     `json:"type"`
 	Text    string     `json:"text,omitempty"`
-	App     *AppInfo   `json:"app,omitempty"`
-	Skill   *SkillInfo `json:"skill,omitempty"`
+	App     *AppItem   `json:"app,omitempty"`
+	Skill   *SkillItem `json:"skill,omitempty"`
 	AppID   string     `json:"app_id,omitempty"`
 	AppName string     `json:"app_name,omitempty"`
 }
@@ -354,7 +344,7 @@ func (c *Client) SendChat(ctx context.Context, msg ChatMessage) error {
 }
 
 // SuggestApp sends an app suggestion chat message.
-func (c *Client) SuggestApp(ctx context.Context, app AppInfo, reason string) error {
+func (c *Client) SuggestApp(ctx context.Context, app AppItem, reason string) error {
 	return c.SendChat(ctx, ChatMessage{
 		Type: ChatAppSuggestion,
 		Text: reason,
@@ -363,7 +353,7 @@ func (c *Client) SuggestApp(ctx context.Context, app AppInfo, reason string) err
 }
 
 // SuggestSkill sends a skill suggestion chat message.
-func (c *Client) SuggestSkill(ctx context.Context, skill SkillInfo, reason string) error {
+func (c *Client) SuggestSkill(ctx context.Context, skill SkillItem, reason string) error {
 	return c.SendChat(ctx, ChatMessage{
 		Type:  ChatSkillSuggestion,
 		Text:  reason,
@@ -412,21 +402,6 @@ func (c *Client) OnLoopMessage(handler func(channelID string, msg Message)) {
 	})
 }
 
-// ListMyChannels returns all channels this bot belongs to via REST.
-func (c *Client) ListMyChannels(ctx context.Context) ([]ChannelInfo, error) {
-	body, err := c.apiRequest(ctx, http.MethodGet, "/bots/"+c.cfg.BotID+"/channels", nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Channels []ChannelInfo `json:"channels"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Channels, nil
-}
-
 // Channels returns the current channel→conversationID map (snapshot).
 func (c *Client) Channels() map[string]string {
 	c.convMu.RLock()
@@ -447,300 +422,6 @@ func (c *Client) ChannelMetas() map[string]ChannelInfo {
 		out[k] = v
 	}
 	return out
-}
-
-// --- Marketplace types ---
-
-// AppInfo represents an app from the marketplace.
-type AppInfo struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	AuthorName     string  `json:"author_name"`
-	AuthorVerified bool    `json:"author_verified"`
-	Category       string  `json:"category"`
-	IconEmoji      string  `json:"icon_emoji"`
-	Rating         float64 `json:"rating"`
-	RatingCount    int     `json:"rating_count"`
-	InstallCount   int     `json:"install_count"`
-	Price          string  `json:"price"`
-	IsOfficial     bool    `json:"is_official"`
-}
-
-// SkillInfo represents a skill from the marketplace.
-type SkillInfo struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Description    string  `json:"description"`
-	AuthorName     string  `json:"author_name"`
-	AuthorVerified bool    `json:"author_verified"`
-	Category       string  `json:"category"`
-	IconEmoji      string  `json:"icon_emoji"`
-	Rating         float64 `json:"rating"`
-	RatingCount    int     `json:"rating_count"`
-	InstallCount   int     `json:"install_count"`
-	Price          string  `json:"price"`
-}
-
-// --- Marketplace methods ---
-
-// ListApps lists apps from the marketplace. If query is non-empty, searches by name.
-func (c *Client) ListApps(ctx context.Context, query string) ([]AppInfo, error) {
-	path := "/apps"
-	if query != "" {
-		path += "?q=" + url.QueryEscape(query)
-	}
-	body, err := c.apiRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Apps []AppInfo `json:"apps"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Apps, nil
-}
-
-// ListFeaturedApps returns the featured apps.
-func (c *Client) ListFeaturedApps(ctx context.Context) ([]AppInfo, error) {
-	body, err := c.apiRequest(ctx, http.MethodGet, "/apps/featured", nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Apps []AppInfo `json:"apps"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Apps, nil
-}
-
-// InstallApp installs an app for this bot.
-func (c *Client) InstallApp(ctx context.Context, appID string) error {
-	_, err := c.apiRequest(ctx, http.MethodPost, "/apps/"+appID+"/install", nil)
-	return err
-}
-
-// UninstallApp uninstalls an app from this bot.
-func (c *Client) UninstallApp(ctx context.Context, appID string) error {
-	_, err := c.apiRequest(ctx, http.MethodDelete, "/apps/"+appID+"/install", nil)
-	return err
-}
-
-// ListSkills returns top skills from the marketplace. If query is non-empty, searches by name.
-func (c *Client) ListSkills(ctx context.Context, query string) ([]SkillInfo, error) {
-	path := "/skills/top"
-	if query != "" {
-		path += "?q=" + url.QueryEscape(query)
-	}
-	body, err := c.apiRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Skills []SkillInfo `json:"skills"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Skills, nil
-}
-
-// InstallSkill installs a skill for this bot.
-func (c *Client) InstallSkill(ctx context.Context, skillID string) error {
-	reqBody := map[string]string{"bot_id": c.cfg.BotID}
-	_, err := c.apiRequest(ctx, http.MethodPost, "/skills/"+skillID+"/install", reqBody)
-	return err
-}
-
-// --- Query types ---
-
-// LoopMembership describes a loop the bot belongs to.
-type LoopMembership struct {
-	LoopID   string `json:"loop_id"`
-	LoopName string `json:"loop_name"`
-	LoopType string `json:"loop_type"`
-	Role     string `json:"role"`
-	JoinedAt string `json:"joined_at"`
-}
-
-// LoopDetail describes detailed info about a loop.
-type LoopDetail struct {
-	LoopID      string `json:"loop_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	IsPublic    bool   `json:"is_public"`
-	MemberCount int    `json:"member_count"`
-	MyRole      string `json:"my_role"`
-	JoinedAt    string `json:"joined_at"`
-}
-
-// LoopMember describes a member of a loop with presence.
-type LoopMember struct {
-	BotID      string `json:"bot_id"`
-	BotName    string `json:"bot_name"`
-	BotSlug    string `json:"bot_slug"`
-	Purpose    string `json:"purpose"`
-	Reputation int    `json:"reputation"`
-	Role       string `json:"role"`
-	JoinedAt   string `json:"joined_at"`
-	IsOnline   bool   `json:"is_online"`
-}
-
-// ChannelMember describes a member of a channel with presence.
-type ChannelMember struct {
-	BotID    string `json:"bot_id"`
-	BotName  string `json:"bot_name"`
-	BotSlug  string `json:"bot_slug"`
-	Role     string `json:"role"`
-	IsOnline bool   `json:"is_online"`
-}
-
-// MessageEntry describes a message from the message history.
-type MessageEntry struct {
-	Seq       uint64 `json:"seq"`
-	MsgID     string `json:"msg_id"`
-	SenderID  string `json:"sender_id"`
-	Stream    string `json:"stream"`
-	Payload   string `json:"payload"`
-	CreatedAt string `json:"created_at"`
-}
-
-// --- Query methods ---
-
-// ListMyLoops returns all loops this bot belongs to.
-func (c *Client) ListMyLoops(ctx context.Context) ([]LoopMembership, error) {
-	body, err := c.apiRequest(ctx, http.MethodGet, "/bots/"+c.cfg.BotID+"/loops", nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Loops []LoopMembership `json:"loops"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Loops, nil
-}
-
-// GetLoopInfo returns detailed info about a loop the bot belongs to.
-func (c *Client) GetLoopInfo(ctx context.Context, loopID string) (*LoopDetail, error) {
-	body, err := c.apiRequest(ctx, http.MethodGet, "/bots/"+c.cfg.BotID+"/loops/"+loopID, nil)
-	if err != nil {
-		return nil, err
-	}
-	var detail LoopDetail
-	if err := json.Unmarshal(body, &detail); err != nil {
-		return nil, err
-	}
-	return &detail, nil
-}
-
-// ListLoopMembers returns all members of a loop the bot belongs to, with presence.
-func (c *Client) ListLoopMembers(ctx context.Context, loopID string) ([]LoopMember, error) {
-	body, err := c.apiRequest(ctx, http.MethodGet, "/bots/"+c.cfg.BotID+"/loops/"+loopID+"/members", nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Members []LoopMember `json:"members"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Members, nil
-}
-
-// ListChannelMembers returns all members of a channel the bot belongs to, with presence.
-func (c *Client) ListChannelMembers(ctx context.Context, channelID string) ([]ChannelMember, error) {
-	body, err := c.apiRequest(ctx, http.MethodGet, "/bots/"+c.cfg.BotID+"/channels/"+channelID+"/members", nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Members []ChannelMember `json:"members"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Members, nil
-}
-
-// ListChannelMessages returns recent messages from a channel the bot belongs to.
-// Limit defaults to 50 on the server, max 200.
-func (c *Client) ListChannelMessages(ctx context.Context, channelID string, limit int) ([]MessageEntry, error) {
-	path := "/bots/" + c.cfg.BotID + "/channels/" + channelID + "/messages"
-	if limit > 0 {
-		path += "?limit=" + url.QueryEscape(fmt.Sprintf("%d", limit))
-	}
-	body, err := c.apiRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp struct {
-		Messages []MessageEntry `json:"messages"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Messages, nil
-}
-
-// --- HTTP helpers ---
-
-func (c *Client) apiRequest(ctx context.Context, method, path string, body any) (json.RawMessage, error) {
-	var bodyReader io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		bodyReader = bytes.NewReader(data)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, c.apiBase+path, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("api %s %s: %d %s", method, path, resp.StatusCode, string(respBody))
-	}
-	return respBody, nil
-}
-
-func resolveAPIBase(cfg Config) string {
-	if cfg.APIEndpoint != "" {
-		return strings.TrimRight(cfg.APIEndpoint, "/") + "/api/v1"
-	}
-	// Derive from WebSocket endpoint: ws→http, wss→https, swap port to 8888
-	u, err := url.Parse(cfg.Endpoint)
-	if err != nil {
-		return "http://localhost:8888/api/v1"
-	}
-	scheme := "http"
-	if u.Scheme == "wss" {
-		scheme = "https"
-	}
-	host := u.Hostname()
-	return scheme + "://" + host + ":8888/api/v1"
 }
 
 // --- Internal ---
