@@ -827,11 +827,23 @@ func (c *Client) readLoop() {
 }
 
 func (c *Client) writeLoop() {
+	// Send WebSocket-level pings every 30s to keep the connection alive
+	// through load balancers and CDNs that have idle timeouts.
+	// All writes go through this single goroutine to avoid concurrent write corruption.
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case data := <-c.sendCh:
 			if err := wsutil.WriteClientBinary(c.conn, data); err != nil {
 				slog.Warn("write error", "error", err)
+				c.Close()
+				return
+			}
+		case <-ticker.C:
+			if err := wsutil.WriteClientMessage(c.conn, ws.OpPing, nil); err != nil {
+				slog.Debug("ping write error, closing", "error", err)
 				c.Close()
 				return
 			}
