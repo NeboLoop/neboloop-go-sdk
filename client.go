@@ -27,10 +27,11 @@ import (
 
 // Config holds connection parameters.
 type Config struct {
-	Endpoint    string // WebSocket URL (e.g. "ws://localhost:9000")
-	APIEndpoint string // REST API URL (e.g. "http://localhost:8888") — derived from Endpoint if empty
-	BotID       string // bot UUID
-	Token       string // owner or bot JWT
+	Endpoint      string        // WebSocket URL (e.g. "ws://localhost:9000")
+	APIEndpoint   string        // REST API URL (e.g. "http://localhost:8888") — derived from Endpoint if empty
+	BotID         string        // bot UUID
+	Token         string        // owner or bot JWT
+	PingInterval  time.Duration // WebSocket-level OpPing interval (default 15s)
 }
 
 // Message is a received message.
@@ -827,10 +828,15 @@ func (c *Client) readLoop() {
 }
 
 func (c *Client) writeLoop() {
-	// Send WebSocket-level pings every 30s to keep the connection alive
-	// through load balancers and CDNs that have idle timeouts.
+	// Send WebSocket-level pings to keep the connection alive through load
+	// balancers and CDNs that have idle timeouts. Must be well under the
+	// server's idle timeout — a ping at the boundary races and loses.
 	// All writes go through this single goroutine to avoid concurrent write corruption.
-	ticker := time.NewTicker(30 * time.Second)
+	pingInterval := c.cfg.PingInterval
+	if pingInterval <= 0 {
+		pingInterval = 15 * time.Second
+	}
+	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
 
 	for {
