@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/NeboLoop/neboloop-go-sdk/frame"
+	"github.com/NeboLoop/neboloop-go-sdk/wire"
 )
 
 // Config holds connection parameters.
@@ -100,11 +101,8 @@ func (c *Client) connect(ctx context.Context) error {
 	c.conn = conn
 
 	// Send CONNECT frame
-	msg := map[string]string{"token": c.cfg.Token}
-	if c.cfg.BotID != "" {
-		msg["botId"] = c.cfg.BotID
-	}
-	connectPayload, _ := json.Marshal(msg)
+	cp := wire.ConnectPayload{Token: c.cfg.Token, BotID: c.cfg.BotID}
+	connectPayload, _ := json.Marshal(cp)
 
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeConnect}, connectPayload)
 	if err := wsutil.WriteClientBinary(conn, encoded); err != nil {
@@ -128,9 +126,7 @@ func (c *Client) connect(ctx context.Context) error {
 	}
 
 	if h.Type == frame.TypeAuthFail {
-		var result struct {
-			Reason string `json:"reason"`
-		}
+		var result wire.AuthResultPayload
 		json.Unmarshal(payload, &result)
 		conn.Close()
 		return fmt.Errorf("auth failed: %s", result.Reason)
@@ -164,10 +160,10 @@ func (c *Client) Close() error {
 
 // Send publishes a message to a conversation.
 func (c *Client) Send(ctx context.Context, conversationID uuid.UUID, stream string, content json.RawMessage) error {
-	payload, _ := json.Marshal(map[string]any{
-		"conversationId": conversationID.String(),
-		"stream":         stream,
-		"content":        content,
+	payload, _ := json.Marshal(wire.SendPayload{
+		ConversationID: conversationID.String(),
+		Stream:         stream,
+		Content:        content,
 	})
 
 	encoded, err := frame.Encode(frame.Header{Type: frame.TypeSendMessage}, payload)
@@ -187,9 +183,9 @@ func (c *Client) Send(ctx context.Context, conversationID uuid.UUID, stream stri
 
 // JoinConversation subscribes to an existing conversation by ID.
 func (c *Client) JoinConversation(conversationID string, lastAckedSeq uint64) {
-	payload, _ := json.Marshal(map[string]any{
-		"conversationId": conversationID,
-		"lastAckedSeq":   lastAckedSeq,
+	payload, _ := json.Marshal(wire.JoinPayload{
+		ConversationID: conversationID,
+		LastAckedSeq:   lastAckedSeq,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeJoinConversation}, payload)
 	select {
@@ -205,9 +201,9 @@ func (c *Client) JoinBotStream(botID string, stream string) {
 	c.pendingJoins = append(c.pendingJoins, botID+":"+stream)
 	c.convMu.Unlock()
 
-	payload, _ := json.Marshal(map[string]any{
-		"botId":  botID,
-		"stream": stream,
+	payload, _ := json.Marshal(wire.JoinPayload{
+		BotID:  botID,
+		Stream: stream,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeJoinConversation}, payload)
 	select {
@@ -218,9 +214,9 @@ func (c *Client) JoinBotStream(botID string, stream string) {
 
 // Ack acknowledges receipt of messages up to seq in a conversation.
 func (c *Client) Ack(conversationID string, ackedSeq uint64) {
-	payload, _ := json.Marshal(map[string]any{
-		"conversationId": conversationID,
-		"ackedSeq":       ackedSeq,
+	payload, _ := json.Marshal(wire.AckPayload{
+		ConversationID: conversationID,
+		AckedSeq:       ackedSeq,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeAck}, payload)
 	select {
@@ -365,8 +361,8 @@ func (c *Client) SuggestSkill(ctx context.Context, skill SkillItem, reason strin
 
 // JoinLoopChannel subscribes to a loop channel by channel_id.
 func (c *Client) JoinLoopChannel(channelID string) {
-	payload, _ := json.Marshal(map[string]string{
-		"channelId": channelID,
+	payload, _ := json.Marshal(wire.JoinPayload{
+		ChannelID: channelID,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeJoinConversation}, payload)
 	select {
@@ -455,11 +451,7 @@ func (c *Client) readLoop() {
 
 		switch h.Type {
 		case frame.TypeMessageDelivery:
-			var delivery struct {
-				SenderID string          `json:"senderId"`
-				Stream   string          `json:"stream"`
-				Content  json.RawMessage `json:"content"`
-			}
+			var delivery wire.DeliveryPayload
 			if err := json.Unmarshal(payload, &delivery); err != nil {
 				continue
 			}
@@ -478,12 +470,7 @@ func (c *Client) readLoop() {
 			}
 
 		case frame.TypeJoinConversation:
-			var result struct {
-				ConversationID string `json:"conversationId"`
-				ChannelID      string `json:"channelId,omitempty"`
-				ChannelName    string `json:"channelName,omitempty"`
-				LoopID         string `json:"loopId,omitempty"`
-			}
+			var result wire.JoinResultPayload
 			if err := json.Unmarshal(payload, &result); err == nil {
 				c.convMu.Lock()
 				if result.ChannelID != "" {
