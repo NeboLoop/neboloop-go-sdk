@@ -51,6 +51,19 @@ type ChannelInfo struct {
 	LoopName    string `json:"loopName"`
 }
 
+// DMPeer describes a DM conversation peer.
+type DMPeer struct {
+	PeerID   string `json:"peerId"`
+	PeerType string `json:"peerType"` // "bot" or "person"
+	LoopID   string `json:"loopId"`
+}
+
+// DMEvent is a DM message with peer context.
+type DMEvent struct {
+	Message
+	Peer DMPeer
+}
+
 // Client connects to the NeboLoop comms gateway.
 type Client struct {
 	cfg        Config
@@ -65,9 +78,13 @@ type Client struct {
 	pendingJoins []string          // tracks pending join keys for mapping responses
 
 	// loop channel mappings (populated by auto-subscribe and JoinLoopChannel)
-	channelConvs map[string]string      // channelID → conversationID
-	channelByConv map[string]string     // conversationID → channelID
-	channelMeta  map[string]ChannelInfo // channelID → metadata
+	channelConvs  map[string]string      // channelID → conversationID
+	channelByConv map[string]string      // conversationID → channelID
+	channelMeta   map[string]ChannelInfo // channelID → metadata
+
+	// DM conversation mappings (populated by auto-subscribe JOIN responses)
+	dmConvs  map[string]DMPeer // conversationID → peer info
+	dmByPeer map[string]string // peerID → conversationID
 }
 
 // Connect establishes a WebSocket connection to the gateway and authenticates.
@@ -81,6 +98,8 @@ func Connect(ctx context.Context, cfg Config, handler Handler) (*Client, error) 
 		channelConvs:  make(map[string]string),
 		channelByConv: make(map[string]string),
 		channelMeta:   make(map[string]ChannelInfo),
+		dmConvs:       make(map[string]DMPeer),
+		dmByPeer:      make(map[string]string),
 	}
 
 	if err := c.connect(ctx); err != nil {
@@ -420,6 +439,54 @@ func (c *Client) ChannelMetas() map[string]ChannelInfo {
 	return out
 }
 
+// --- DM methods ---
+
+// OnDM registers a handler for DM messages. Filters messages on the "dm" stream
+// and enriches them with peer context from the DM tracking maps.
+func (c *Client) OnDM(handler func(DMEvent)) {
+	c.handler = chainHandler(c.handler, func(m Message) {
+		if m.Stream != "dm" {
+			return
+		}
+		c.convMu.RLock()
+		peer, ok := c.dmConvs[m.ConversationID]
+		c.convMu.RUnlock()
+		if !ok {
+			return
+		}
+		handler(DMEvent{Message: m, Peer: peer})
+	})
+}
+
+// SendDM sends a direct message to a DM conversation.
+func (c *Client) SendDM(ctx context.Context, conversationID string, msg DirectMessage) error {
+	convID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return fmt.Errorf("invalid conversation id: %w", err)
+	}
+	content, _ := json.Marshal(msg)
+	return c.Send(ctx, convID, "dm", content)
+}
+
+// DMs returns the current DM conversation→peer map (snapshot).
+func (c *Client) DMs() map[string]DMPeer {
+	c.convMu.RLock()
+	defer c.convMu.RUnlock()
+	out := make(map[string]DMPeer, len(c.dmConvs))
+	for k, v := range c.dmConvs {
+		out[k] = v
+	}
+	return out
+}
+
+// DMConversationForPeer returns the conversation ID for a DM with the given peer.
+func (c *Client) DMConversationForPeer(peerID string) (string, bool) {
+	c.convMu.RLock()
+	defer c.convMu.RUnlock()
+	convID, ok := c.dmByPeer[peerID]
+	return convID, ok
+}
+
 // --- Internal ---
 
 func (c *Client) readLoop() {
@@ -473,7 +540,15 @@ func (c *Client) readLoop() {
 			var result wire.JoinResultPayload
 			if err := json.Unmarshal(payload, &result); err == nil {
 				c.convMu.Lock()
-				if result.ChannelID != "" {
+				if result.PeerID != "" {
+					// DM join — track peer
+					c.dmConvs[result.ConversationID] = DMPeer{
+						PeerID:   result.PeerID,
+						PeerType: result.PeerType,
+						LoopID:   result.LoopID,
+					}
+					c.dmByPeer[result.PeerID] = result.ConversationID
+				} else if result.ChannelID != "" {
 					// Loop channel join (auto or explicit)
 					c.channelConvs[result.ChannelID] = result.ConversationID
 					c.channelByConv[result.ConversationID] = result.ChannelID
