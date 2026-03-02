@@ -188,7 +188,7 @@ func (c *APIClient) GetSkill(ctx context.Context, id string) (*SkillDetail, erro
 func (c *APIClient) InstallSkill(ctx context.Context, id string) (*InstallResponse, error) {
 	var resp InstallResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/v1/skills/"+id+"/install", map[string]string{
-		"bot_id": c.botID,
+		"botId": c.botID,
 	}, &resp); err != nil {
 		return nil, err
 	}

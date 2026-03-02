@@ -162,7 +162,7 @@ type RedeemCodeRequest struct {
 	Code    string `json:"code"`
 	Name    string `json:"name"`
 	Purpose string `json:"purpose"`
-	BotID   string `json:"bot_id,omitempty"` // Nebo-generated, immutable — server uses this instead of generating one
+	BotID   string `json:"botId,omitempty"` // Nebo-generated, immutable — server uses this instead of generating one
 }
 
 // RedeemCodeResponse is returned by POST /api/v1/bots/connect/redeem.
@@ -172,7 +172,7 @@ type RedeemCodeResponse struct {
 	Slug            string `json:"slug"`
 	Purpose         string `json:"purpose"`
 	Visibility      string `json:"visibility"`
-	ConnectionToken string `json:"connection_token"`
+	ConnectionToken string `json:"connectionToken"`
 }
 
 // --------------------------------------------------------------------------
@@ -182,7 +182,7 @@ type RedeemCodeResponse struct {
 // RedeemSkillCodeRequest is sent to POST /api/v1/skills/redeem.
 type RedeemSkillCodeRequest struct {
 	Code  string `json:"code"`
-	BotID string `json:"bot_id"`
+	BotID string `json:"botId"`
 }
 
 // --------------------------------------------------------------------------

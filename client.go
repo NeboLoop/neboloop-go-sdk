@@ -44,10 +44,10 @@ type Handler func(Message)
 
 // ChannelInfo describes a loop channel the bot belongs to.
 type ChannelInfo struct {
-	ChannelID   string `json:"channel_id"`
-	ChannelName string `json:"channel_name"`
-	LoopID      string `json:"loop_id"`
-	LoopName    string `json:"loop_name"`
+	ChannelID   string `json:"channelId"`
+	ChannelName string `json:"channelName"`
+	LoopID      string `json:"loopId"`
+	LoopName    string `json:"loopName"`
 }
 
 // Client connects to the NeboLoop comms gateway.
@@ -102,7 +102,7 @@ func (c *Client) connect(ctx context.Context) error {
 	// Send CONNECT frame
 	msg := map[string]string{"token": c.cfg.Token}
 	if c.cfg.BotID != "" {
-		msg["bot_id"] = c.cfg.BotID
+		msg["botId"] = c.cfg.BotID
 	}
 	connectPayload, _ := json.Marshal(msg)
 
@@ -165,9 +165,9 @@ func (c *Client) Close() error {
 // Send publishes a message to a conversation.
 func (c *Client) Send(ctx context.Context, conversationID uuid.UUID, stream string, content json.RawMessage) error {
 	payload, _ := json.Marshal(map[string]any{
-		"conversation_id": conversationID.String(),
-		"stream":          stream,
-		"content":         content,
+		"conversationId": conversationID.String(),
+		"stream":         stream,
+		"content":        content,
 	})
 
 	encoded, err := frame.Encode(frame.Header{Type: frame.TypeSendMessage}, payload)
@@ -188,8 +188,8 @@ func (c *Client) Send(ctx context.Context, conversationID uuid.UUID, stream stri
 // JoinConversation subscribes to an existing conversation by ID.
 func (c *Client) JoinConversation(conversationID string, lastAckedSeq uint64) {
 	payload, _ := json.Marshal(map[string]any{
-		"conversation_id": conversationID,
-		"last_acked_seq":  lastAckedSeq,
+		"conversationId": conversationID,
+		"lastAckedSeq":   lastAckedSeq,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeJoinConversation}, payload)
 	select {
@@ -206,7 +206,7 @@ func (c *Client) JoinBotStream(botID string, stream string) {
 	c.convMu.Unlock()
 
 	payload, _ := json.Marshal(map[string]any{
-		"bot_id": botID,
+		"botId":  botID,
 		"stream": stream,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeJoinConversation}, payload)
@@ -219,8 +219,8 @@ func (c *Client) JoinBotStream(botID string, stream string) {
 // Ack acknowledges receipt of messages up to seq in a conversation.
 func (c *Client) Ack(conversationID string, ackedSeq uint64) {
 	payload, _ := json.Marshal(map[string]any{
-		"conversation_id": conversationID,
-		"acked_seq":       ackedSeq,
+		"conversationId": conversationID,
+		"ackedSeq":       ackedSeq,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeAck}, payload)
 	select {
@@ -234,8 +234,8 @@ func (c *Client) Ack(conversationID string, ackedSeq uint64) {
 // InstallEvent represents an app install/update/revoke notification.
 type InstallEvent struct {
 	Type    string          `json:"type"`    // "app_installed", "app_updated", "app_revoked", "app_uninstalled"
-	AppID   string          `json:"app_id"`
-	AppName string          `json:"app_name"`
+	AppID   string          `json:"appId"`
+	AppName string          `json:"appName"`
 	Payload json.RawMessage `json:"payload"`
 }
 
@@ -256,9 +256,9 @@ func (c *Client) OnInstall(handler func(InstallEvent)) {
 
 // ChannelMessage represents a message from a channel bridge.
 type ChannelMessage struct {
-	ChannelType string `json:"channel_type"` // "telegram", "discord"
-	ChannelID   string `json:"channel_id"`
-	SenderName  string `json:"sender_name"`
+	ChannelType string `json:"channelType"` // "telegram", "discord"
+	ChannelID   string `json:"channelId"`
+	SenderName  string `json:"senderName"`
 	Text        string `json:"text"`
 }
 
@@ -270,14 +270,14 @@ func (c *Client) SendChannelMessage(ctx context.Context, convID uuid.UUID, msg C
 
 // TaskSubmission represents an A2A task request.
 type TaskSubmission struct {
-	CorrelationID string          `json:"correlation_id"`
-	FromBotID     string          `json:"from_bot_id"`
+	CorrelationID string          `json:"correlationId"`
+	FromBotID     string          `json:"fromBotId"`
 	Input         json.RawMessage `json:"input"`
 }
 
 // TaskResult represents an A2A task result.
 type TaskResult struct {
-	CorrelationID string          `json:"correlation_id"`
+	CorrelationID string          `json:"correlationId"`
 	Status        string          `json:"status"` // "completed", "failed"
 	Output        json.RawMessage `json:"output,omitempty"`
 	Error         string          `json:"error,omitempty"`
@@ -304,8 +304,8 @@ type ChatMessage struct {
 	Text    string     `json:"text,omitempty"`
 	App     *AppItem   `json:"app,omitempty"`
 	Skill   *SkillItem `json:"skill,omitempty"`
-	AppID   string     `json:"app_id,omitempty"`
-	AppName string     `json:"app_name,omitempty"`
+	AppID   string     `json:"appId,omitempty"`
+	AppName string     `json:"appName,omitempty"`
 }
 
 // OnChat subscribes to chat messages. Wraps the generic handler.
@@ -366,7 +366,7 @@ func (c *Client) SuggestSkill(ctx context.Context, skill SkillItem, reason strin
 // JoinLoopChannel subscribes to a loop channel by channel_id.
 func (c *Client) JoinLoopChannel(channelID string) {
 	payload, _ := json.Marshal(map[string]string{
-		"channel_id": channelID,
+		"channelId": channelID,
 	})
 	encoded, _ := frame.Encode(frame.Header{Type: frame.TypeJoinConversation}, payload)
 	select {
@@ -456,7 +456,7 @@ func (c *Client) readLoop() {
 		switch h.Type {
 		case frame.TypeMessageDelivery:
 			var delivery struct {
-				SenderID string          `json:"sender_id"`
+				SenderID string          `json:"senderId"`
 				Stream   string          `json:"stream"`
 				Content  json.RawMessage `json:"content"`
 			}
@@ -479,10 +479,10 @@ func (c *Client) readLoop() {
 
 		case frame.TypeJoinConversation:
 			var result struct {
-				ConversationID string `json:"conversation_id"`
-				ChannelID      string `json:"channel_id,omitempty"`
-				ChannelName    string `json:"channel_name,omitempty"`
-				LoopID         string `json:"loop_id,omitempty"`
+				ConversationID string `json:"conversationId"`
+				ChannelID      string `json:"channelId,omitempty"`
+				ChannelName    string `json:"channelName,omitempty"`
+				LoopID         string `json:"loopId,omitempty"`
 			}
 			if err := json.Unmarshal(payload, &result); err == nil {
 				c.convMu.Lock()
