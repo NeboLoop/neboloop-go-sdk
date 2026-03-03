@@ -150,7 +150,9 @@ func (c *APIClient) GetAppReviews(ctx context.Context, id string, page, pageSize
 // InstallApp installs an app for this bot.
 func (c *APIClient) InstallApp(ctx context.Context, id string) (*InstallResponse, error) {
 	var resp InstallResponse
-	if err := c.doJSON(ctx, http.MethodPost, "/api/v1/apps/"+id+"/install", nil, &resp); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, "/api/v1/apps/"+id+"/install", map[string]string{
+		"botId": c.botID,
+	}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -158,7 +160,9 @@ func (c *APIClient) InstallApp(ctx context.Context, id string) (*InstallResponse
 
 // UninstallApp uninstalls an app for this bot.
 func (c *APIClient) UninstallApp(ctx context.Context, id string) error {
-	return c.doJSON(ctx, http.MethodDelete, "/api/v1/apps/"+id+"/install", nil, nil)
+	return c.doJSON(ctx, http.MethodDelete, "/api/v1/apps/"+id+"/install", map[string]string{
+		"botId": c.botID,
+	}, nil)
 }
 
 // --------------------------------------------------------------------------
@@ -196,15 +200,9 @@ func (c *APIClient) InstallSkill(ctx context.Context, id string) (*InstallRespon
 }
 
 // RedeemSkillCode installs a skill using a SKILL-XXXX-XXXX-XXXX install code.
+// Install codes are accepted directly as the {id} path parameter.
 func (c *APIClient) RedeemSkillCode(ctx context.Context, code string) (*InstallResponse, error) {
-	var resp InstallResponse
-	if err := c.doJSON(ctx, http.MethodPost, "/api/v1/skills/redeem", RedeemSkillCodeRequest{
-		Code:  code,
-		BotID: c.botID,
-	}, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
+	return c.InstallSkill(ctx, code)
 }
 
 // UninstallSkill uninstalls a skill for this bot.
