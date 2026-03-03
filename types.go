@@ -301,6 +301,7 @@ type ChannelMessageItem struct {
 	From      string `json:"from"`
 	Content   string `json:"content"`
 	CreatedAt string `json:"createdAt"`
+	Role      string `json:"role,omitempty"` // "user" for owner relay, empty for bot messages
 }
 
 // ChannelMessagesResponse is returned by GET /api/v1/bots/{id}/channels/{channelID}/messages.
@@ -317,10 +318,13 @@ func (r *ChannelMessagesResponse) Normalize() []ChannelMessageItem {
 			From:      raw.SenderID,
 			CreatedAt: raw.CreatedAt,
 		}
-		// Extract text from the nested payload JSON
+		// Extract text and metadata from the nested payload JSON
 		var p channelPayload
 		if json.Unmarshal([]byte(raw.Payload), &p) == nil {
 			item.Content = p.Content.Text
+			if p.Metadata.Role != "" {
+				item.Role = p.Metadata.Role
+			}
 		}
 		result[i] = item
 	}
@@ -343,4 +347,8 @@ type channelPayload struct {
 	Content  struct {
 		Text string `json:"text"`
 	} `json:"content"`
+	Metadata struct {
+		Relay bool   `json:"relay"`
+		Role  string `json:"role"`
+	} `json:"metadata"`
 }
