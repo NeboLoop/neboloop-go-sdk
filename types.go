@@ -141,6 +141,8 @@ type InstallResponse struct {
 	Skill           *InstallResponseApp `json:"skill,omitempty"`
 	InstalledAt     string              `json:"installedAt"`
 	UpdateAvailable bool                `json:"updateAvailable"`
+	Platforms       []string            `json:"platforms,omitempty"`
+	DownloadUrls    map[string]string   `json:"downloadUrls,omitempty"`
 }
 
 // --------------------------------------------------------------------------
