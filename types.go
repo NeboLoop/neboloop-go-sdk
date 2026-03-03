@@ -1,6 +1,9 @@
 package neboloop
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"runtime"
+)
 
 // --------------------------------------------------------------------------
 // App Types
@@ -143,6 +146,18 @@ type InstallResponse struct {
 	UpdateAvailable bool                `json:"updateAvailable"`
 	Platforms       []string            `json:"platforms,omitempty"`
 	DownloadUrls    map[string]string   `json:"downloadUrls,omitempty"`
+}
+
+// DownloadURL returns the platform-specific download URL for the installed item.
+// It checks DownloadUrls for a key matching "GOOS-GOARCH" (e.g. "darwin-arm64").
+// If no platform-specific URL exists, it returns the fallback URL as-is.
+// Relative paths are prefixed with apiServer.
+func (r *InstallResponse) DownloadURL(apiServer, fallbackPath string) string {
+	platform := runtime.GOOS + "-" + runtime.GOARCH
+	if u, ok := r.DownloadUrls[platform]; ok {
+		return apiServer + u
+	}
+	return apiServer + fallbackPath
 }
 
 // --------------------------------------------------------------------------
