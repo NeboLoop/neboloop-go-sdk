@@ -16,6 +16,7 @@ type AuthResultPayload struct {
 	Reason string `json:"reason,omitempty"`
 	BotID  string `json:"botId,omitempty"`
 	Plan   string `json:"plan,omitempty"`
+	Token  string `json:"token,omitempty"` // rotated bot JWT (reconnect with this)
 }
 
 // SendPayload is the payload of a SEND_MESSAGE frame (client -> server).
