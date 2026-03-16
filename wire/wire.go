@@ -45,7 +45,7 @@ type JoinPayload struct {
 }
 
 // JoinResultPayload is sent back after a successful join (server -> client).
-// Presence of PeerID distinguishes DM joins from channel/stream joins.
+// Presence of AgentID distinguishes agent space joins from channel/stream joins.
 type JoinResultPayload struct {
 	ConversationID string `json:"conversationId"`
 	BotID          string `json:"botId,omitempty"`
@@ -53,8 +53,9 @@ type JoinResultPayload struct {
 	ChannelID      string `json:"channelId,omitempty"`
 	ChannelName    string `json:"channelName,omitempty"`
 	LoopID         string `json:"loopId,omitempty"`
-	PeerID         string `json:"peerId,omitempty"`
-	PeerType       string `json:"peerType,omitempty"` // "bot" or "person"
+	AgentID        string `json:"agentId,omitempty"`
+	AgentSlug      string `json:"agentSlug,omitempty"`
+	ConvType       string `json:"type,omitempty"` // "agent_space", "loop_channel", "bot_stream"
 }
 
 // LeavePayload is the payload of a LEAVE_CONVERSATION frame (client -> server).
