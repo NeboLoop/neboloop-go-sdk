@@ -56,6 +56,16 @@ type JoinResultPayload struct {
 	AgentID        string `json:"agentId,omitempty"`
 	AgentSlug      string `json:"agentSlug,omitempty"`
 	ConvType       string `json:"type,omitempty"` // "agent_space", "loop_channel", "bot_stream"
+	// DM joins — the peer on the other side of the conversation. These are
+	// part of the gateway's join JSON (client.go's DM tracking reads them);
+	// they were referenced but missing from this struct.
+	PeerID   string `json:"peerId,omitempty"`
+	PeerType string `json:"peerType,omitempty"` // "bot" | "person"
+	// Agent-space chats: each desktop chat of an agent maps to its own loop
+	// conversation. ChatID is the desktop chat identifier; ChatTitle is the
+	// human title shown in chat lists. Empty for non-agent-space joins.
+	ChatID    string `json:"chatId,omitempty"`
+	ChatTitle string `json:"chatTitle,omitempty"`
 }
 
 // LeavePayload is the payload of a LEAVE_CONVERSATION frame (client -> server).
