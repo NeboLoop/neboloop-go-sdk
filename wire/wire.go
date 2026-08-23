@@ -24,6 +24,15 @@ type SendPayload struct {
 	ConversationID string          `json:"conversationId"`
 	Stream         string          `json:"stream"`
 	Content        json.RawMessage `json:"content"`
+	// Sender agent identity — WHICH of the sending bot's employees is
+	// speaking. Optional: absent for owner/browser sends and older clients.
+	// Client-asserted, but scoped: senderId is server-stamped, so a bot can
+	// only mislabel its own sub-identity — attribution within its own roster,
+	// never impersonation of another bot. Required for multi-agent rooms
+	// (attribution, mention resolution, per-agent audit) and agent-aware
+	// self-echo suppression on the receiving side.
+	FromAgentID   string `json:"fromAgentId,omitempty"`
+	FromAgentName string `json:"fromAgentName,omitempty"`
 }
 
 // DeliveryPayload is what gets stored in message_log and fanned out to
@@ -32,6 +41,9 @@ type DeliveryPayload struct {
 	SenderID string          `json:"senderId"`
 	Stream   string          `json:"stream"`
 	Content  json.RawMessage `json:"content"`
+	// Relayed verbatim from SendPayload — see the note there.
+	FromAgentID   string `json:"fromAgentId,omitempty"`
+	FromAgentName string `json:"fromAgentName,omitempty"`
 }
 
 // JoinPayload is the payload of a JOIN_CONVERSATION frame (client -> server).
